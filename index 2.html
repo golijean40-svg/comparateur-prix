@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Monoprix vs Grand Frais</title>
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#F7F3EA" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="Comparateur" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<style>
+  :root {
+    --ink: #20281F;
+    --paper: #F7F3EA;
+    --mono: #C4297A;
+    --gf: #3F6B33;
+    --tag: #D98A2B;
+    --warn: #B23A2B;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .sans { font-family: system-ui, sans-serif; }
+  .wrap { max-width: 720px; margin: 0 auto; padding: 24px 18px 70px; }
+  h1 { font-size: 28px; margin: 4px 0 0; font-weight: 600; }
+  h1 .m { color: var(--mono); }
+  h1 .g { color: var(--gf); }
+  .eyebrow { font-size: 12.5px; letter-spacing: .5px; color: rgba(32,40,31,.6); }
+  .sub { font-size: 14px; color: rgba(32,40,31,.8); margin-top: 8px; max-width: 480px; }
+  .row { display: flex; gap: 10px; }
+  .card { background: #fff; border: 1px solid rgba(32,40,31,.08); border-radius: 10px; padding: 14px 16px; }
+  .btn { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 14px; border-radius: 8px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; font-family: system-ui, sans-serif; }
+  .btn-dark { background: var(--ink); color: var(--paper); width: 100%; }
+  .btn-outline { background: #fff; border: 1px solid rgba(32,40,31,.2); color: var(--ink); }
+  input[type=text], input[type=number], input.price {
+    width: 100%; padding: 9px 11px; border-radius: 7px; border: 1px solid rgba(32,40,31,.18);
+    font-size: 14.5px; font-family: system-ui, sans-serif; background: var(--paper); color: var(--ink);
+  }
+  label.small { display: block; font-size: 11.5px; font-weight: 600; margin-bottom: 4px; }
+  .field { flex: 1; }
+  .grid-prices { display: grid; grid-template-columns: 1fr auto auto; row-gap: 10px; column-gap: 10px; font-family: system-ui, sans-serif; }
+  .name-cell { display: flex; align-items: center; font-size: 14px; font-weight: 600; background: #fff; border: 1px solid rgba(32,40,31,.08); border-radius: 8px; padding: 10px 12px; }
+  .badge { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(32,40,31,.08); min-width: 108px; background: #fff; }
+  .badge.win { background: rgba(0,0,0,.03); }
+  .badge .dot { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:700; }
+  .badge .lbl { font-size: 10.5px; font-weight: 600; line-height: 1.2; }
+  .badge .val { font-size: 13.5px; font-weight: 700; line-height: 1.3; }
+  .prod-card { display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; }
+  .prod-top { display: flex; justify-content: space-between; align-items: center; }
+  .del { border: none; background: transparent; color: rgba(32,40,31,.45); font-size: 18px; cursor: pointer; padding: 4px 8px; }
+  .pill { text-align: center; }
+  .pill .lbl { font-size: 11px; font-weight: 600; }
+  .pill .val { font-size: 14px; font-weight: 700; }
+  .analysis { margin-top: 4px; padding-top: 10px; border-top: 1px dashed rgba(32,40,31,.15); font-family: system-ui, sans-serif; font-size: 12.5px; }
+  .analysis .title { font-weight: 700; font-size: 13px; margin-bottom: 4px; }
+  .note { font-size: 12.5px; color: rgba(32,40,31,.65); }
+  .section-title { font-size: 15px; font-weight: 700; margin-bottom: 12px; font-family: system-ui, sans-serif; }
+  .action-item { display: flex; justify-content: space-between; font-size: 13.5px; padding: 6px 10px; background: var(--paper); border-radius: 6px; margin-bottom: 6px; font-family: system-ui, sans-serif; }
+  ul.levers { margin: 0; padding-left: 18px; font-family: system-ui, sans-serif; font-size: 13.5px; }
+  ul.levers li { margin-bottom: 6px; }
+  .top-actions { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 20px; }
+  .export-col { display: flex; flex-direction: column; gap: 8px; }
+  @media print {
+    .no-print { display: none !important; }
+    body { background: #fff !important; }
+    .wrap { padding: 0 !important; }
+    .prices-only .hide-in-prices-only { display: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap" id="root"></div>
+
+<script>
+const STORAGE_KEY = "cp_products_v1";
+const MARGIN_KEY = "cp_min_margin_v1";
+
+let products = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null") || [
+  { id: 1, name: "Lait demi-écrémé 1L", achat: "0.72", monoprix: "1.15", grandfrais: "0.99" },
+  { id: 2, name: "Beurre doux 250g", achat: "1.95", monoprix: "2.85", grandfrais: "2.40" },
+  { id: 3, name: "Tomates grappe 1kg", achat: "2.10", monoprix: "3.90", grandfrais: "2.95" },
+  { id: 4, name: "Poulet fermier (pièce)", achat: "6.60", monoprix: "9.50", grandfrais: "7.80" },
+];
+let minMargin = localStorage.getItem(MARGIN_KEY) || "15";
+let printMode = "full";
+
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
+  localStorage.setItem(MARGIN_KEY, minMargin);
+}
+
+function num(v) {
+  const n = parseFloat(String(v).replace(",", "."));
+  return isFinite(n) ? n : null;
+}
+function euro(v) {
+  const n = num(v);
+  return n === null ? "—" : n.toFixed(2).replace(".", ",") + " €";
+}
+function pct(v) {
+  return v.toFixed(1).replace(".", ",") + " %";
+}
+
+function computeAnalysis(p, minMarginPct) {
+  const achat = num(p.achat), vente = num(p.monoprix), gf = num(p.grandfrais);
+  if (achat === null || vente === null || achat <= 0 || vente <= 0) return null;
+  const margeActuelle = ((vente - achat) / vente) * 100;
+  const prixPlancher = achat / (1 - minMarginPct / 100);
+  let ecartVsGF = null, prixConseille = null, margeConseillee = null, atteignable = null;
+  if (gf !== null && gf > 0) {
+    ecartVsGF = ((vente - gf) / vente) * 100;
+    if (prixPlancher <= gf) {
+      prixConseille = gf;
+      margeConseillee = ((gf - achat) / gf) * 100;
+      atteignable = true;
+    } else {
+      prixConseille = prixPlancher;
+      margeConseillee = minMarginPct;
+      atteignable = false;
+    }
+  }
+  return { achat, vente, gf, margeActuelle, prixPlancher, ecartVsGF, prixConseille, margeConseillee, atteignable };
+}
+
+const LEVERS = [
+  "Réduire la démarque et la casse sur le frais (rotation, contrôle des dates)",
+  "Mettre en tête de gondole ou en zone chaude les produits où l'écart est faible",
+  "Utiliser le budget promo local (ILV, offre ponctuelle) sur les produits les plus comparés",
+  "Soigner la présentation et la fraîcheur perçue pour justifier l'écart aux yeux du client",
+  "Constituer un dossier chiffré à remonter aux achats / category manager",
+];
+
+function exportPdf(mode) {
+  printMode = mode;
+  document.getElementById("root").className = mode === "prices" ? "prices-only" : "";
+  setTimeout(() => window.print(), 50);
+}
+
+function removeProduct(id) {
+  products = products.filter(p => p.id !== id);
+  save();
+  render();
+}
+
+function addProduct() {
+  const name = document.getElementById("f-name").value.trim();
+  const achat = document.getElementById("f-achat").value;
+  const mp = document.getElementById("f-mp").value;
+  const gf = document.getElementById("f-gf").value;
+  if (!name || !achat || !mp || !gf) return;
+  products.push({ id: Date.now(), name, achat, monoprix: mp, grandfrais: gf });
+  save();
+  document.getElementById("f-name").value = "";
+  document.getElementById("f-achat").value = "";
+  document.getElementById("f-mp").value = "";
+  document.getElementById("f-gf").value = "";
+  render();
+}
+
+function onMarginChange(v) {
+  minMargin = v;
+  save();
+  render();
+}
+
+function badgeHtml(brand, price, highlight) {
+  const isMono = brand === "monoprix";
+  const color = isMono ? "var(--mono)" : "var(--gf)";
+  const label = isMono ? "Monoprix" : "Grand Frais";
+  const initial = isMono ? "M" : "GF";
+  return `<div class="badge ${highlight ? "win" : ""}" style="${highlight ? `border-color:${color}55;` : ""}">
+    <div class="dot" style="background:${color};">${initial}</div>
+    <div><div class="lbl" style="color:${color}">${label}</div><div class="val">${price}</div></div>
+  </div>`;
+}
+
+function render() {
+  const minMarginNum = num(minMargin) ?? 15;
+  const analyses = products.map(p => ({ ...p, a: computeAnalysis(p, minMarginNum) }));
+  const priorityProducts = analyses
+    .filter(p => p.a && p.a.ecartVsGF !== null && p.a.ecartVsGF > 0)
+    .sort((x, y) => y.a.ecartVsGF - x.a.ecartVsGF)
+    .slice(0, 3);
+  const unreachableCount = analyses.filter(p => p.a && p.a.atteignable === false).length;
+
+  let html = "";
+
+  html += `<div class="top-actions">
+    <div>
+      <div class="eyebrow sans">Comparateur & prix compétitif</div>
+      <h1><span class="m">Monoprix</span> vs <span class="g">Grand Frais</span></h1>
+      <p class="sub hide-in-prices-only">Renseigne le prix d'achat, le prix de vente Monoprix et le prix Grand Frais. L'appli calcule ta marge et le prix le plus bas pour être compétitif.</p>
+    </div>
+    <div class="export-col no-print">
+      <button class="btn btn-outline" onclick="exportPdf('full')">📄 PDF complet</button>
+      <button class="btn btn-outline" onclick="exportPdf('prices')">📄 PDF (prix)</button>
+    </div>
+  </div>`;
+
+  html += `<div class="section-title">Grille de prix par enseigne</div>
+  <div class="grid-prices" style="margin-bottom:26px;">`;
+  if (analyses.length === 0) {
+    html += `<div class="sans note" style="grid-column:1/-1;text-align:center;padding:20px 0;">Ajoute un produit ci-dessous.</div>`;
+  }
+  analyses.forEach(p => {
+    const cheaper = p.a && p.a.ecartVsGF !== null ? (p.a.ecartVsGF > 0 ? "grandfrais" : p.a.ecartVsGF < 0 ? "monoprix" : "egal") : null;
+    html += `<div class="name-cell">${p.name}</div>`;
+    html += badgeHtml("monoprix", euro(p.monoprix), cheaper === "monoprix");
+    html += badgeHtml("grandfrais", euro(p.grandfrais), cheaper === "grandfrais");
+  });
+  html += `</div>`;
+
+  html += `<div class="row no-print" style="align-items:center;gap:10px;margin-bottom:18px;font-family:system-ui,sans-serif;">
+    <label class="sans" style="font-size:13.5px;color:rgba(32,40,31,.6);">Marge minimale à conserver</label>
+    <input type="text" value="${minMargin}" oninput="onMarginChange(this.value)" style="width:56px;text-align:center;padding:6px 8px;" />
+    <span class="sans" style="font-size:13.5px;color:rgba(32,40,31,.6);">%</span>
+  </div>`;
+
+  html += `<div class="card no-print" style="margin-bottom:24px;">
+    <div class="row" style="flex-direction:column;gap:10px;">
+      <input type="text" id="f-name" placeholder="Nom du produit" />
+      <div class="row">
+        <div class="field"><label class="small sans" style="color:var(--tag);">Prix d'achat (€)</label><input type="text" id="f-achat" placeholder="0.00" inputmode="decimal" /></div>
+        <div class="field"><label class="small sans" style="color:var(--mono);">Vente Monoprix (€)</label><input type="text" id="f-mp" placeholder="0.00" inputmode="decimal" /></div>
+        <div class="field"><label class="small sans" style="color:var(--gf);">Grand Frais (€)</label><input type="text" id="f-gf" placeholder="0.00" inputmode="decimal" /></div>
+      </div>
+      <button class="btn btn-dark" onclick="addProduct()">+ Ajouter le produit</button>
+    </div>
+  </div>`;
+
+  html += `<div class="hide-in-prices-only">`;
+  analyses.forEach(p => {
+    const a = p.a;
+    html += `<div class="card prod-card">
+      <div class="prod-top">
+        <div style="font-size:16px;font-weight:600;">${p.name}</div>
+        <button class="del no-print" onclick="removeProduct(${p.id})">🗑</button>
+      </div>
+      <div class="row sans" style="flex-wrap:wrap;align-items:center;gap:14px;">
+        <div class="pill"><div class="lbl" style="color:var(--tag);">Achat</div><div class="val">${euro(p.achat)}</div></div>
+        <div class="pill"><div class="lbl" style="color:var(--mono);">Vente Monoprix</div><div class="val">${euro(p.monoprix)}</div></div>
+        <div class="pill"><div class="lbl" style="color:var(--gf);">Grand Frais</div><div class="val">${euro(p.grandfrais)}</div></div>
+        ${a ? `<div style="margin-left:auto;font-size:13px;color:rgba(32,40,31,.6);">Marge actuelle : <b style="color:var(--ink);">${pct(a.margeActuelle)}</b></div>` : ""}
+      </div>
+      ${a && a.ecartVsGF !== null ? `
+      <div class="analysis">
+        <div class="title" style="color:${a.atteignable ? "var(--gf)" : "var(--warn)"};">🎯 Prix conseillé pour être compétitif : ${euro(a.prixConseille)}</div>
+        <div class="note">${a.atteignable
+          ? `Tu peux t'aligner sur Grand Frais et garder une marge de ${pct(a.margeConseillee)}.`
+          : `Impossible d'égaler Grand Frais (${euro(a.gf)}) sans passer sous ${minMarginNum}% de marge. À ${euro(a.prixConseille)}, il reste ${pct(((a.prixConseille - a.gf) / a.prixConseille) * 100)} plus cher.`}</div>
+      </div>` : ""}
+    </div>`;
+  });
+  html += `</div>`;
+
+  if (priorityProducts.length > 0) {
+    html += `<div class="card hide-in-prices-only" style="margin-top:6px;">
+      <div class="section-title">Plan d'action rayon</div>
+      <div class="sans note" style="margin-bottom:10px;">Produits à traiter en priorité :</div>`;
+    priorityProducts.forEach(p => {
+      html += `<div class="action-item"><span>${p.name}</span><span style="color:${p.a.atteignable ? "var(--gf)" : "var(--warn)"};font-weight:700;">Objectif : ${euro(p.a.prixConseille)}${p.a.atteignable ? "" : " (marge min.)"}</span></div>`;
+    });
+    if (unreachableCount > 0) {
+      html += `<div class="sans" style="font-size:12.5px;color:var(--warn);background:rgba(178,58,43,.08);border-radius:6px;padding:8px 10px;margin:10px 0;">${unreachableCount} produit(s) ne peuvent pas atteindre le prix Grand Frais sans passer sous la marge minimale — le levier est de renégocier le prix d'achat.</div>`;
+    }
+    html += `<div class="sans note" style="margin:10px 0;">Leviers activables à ton niveau (chef de rayon) :</div>
+      <ul class="levers">${LEVERS.map(l => `<li>${l}</li>`).join("")}</ul>
+    </div>`;
+  }
+
+  document.getElementById("root").innerHTML = html;
+}
+
+render();
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
