@@ -1,5 +1,5 @@
 const CACHE = "comparateur-v1";
-const ASSETS = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png"];
+const ASSETS = ["./", "./index.html", "./manifest.json", "./IMG_7062.png", "./IMG_7062.png"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)));
