@@ -18,6 +18,7 @@
     --gf: #3F6B33;
     --tag: #D98A2B;
     --warn: #B23A2B;
+    --promo: #C4297A;
   }
   * { box-sizing: border-box; }
   body {
@@ -28,7 +29,7 @@
     -webkit-tap-highlight-color: transparent;
   }
   .sans { font-family: system-ui, sans-serif; }
-  .wrap { max-width: 720px; margin: 0 auto; padding: 24px 18px 70px; }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 24px 18px 70px; }
   h1 { font-size: 28px; margin: 4px 0 0; font-weight: 600; }
   h1 .m { color: var(--mono); }
   h1 .g { color: var(--gf); }
@@ -39,27 +40,32 @@
   .btn { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 14px; border-radius: 8px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; font-family: system-ui, sans-serif; }
   .btn-dark { background: var(--ink); color: var(--paper); width: 100%; }
   .btn-outline { background: #fff; border: 1px solid rgba(32,40,31,.2); color: var(--ink); }
-  input[type=text], input[type=number], input.price {
+  input[type=text], input.price, select {
     width: 100%; padding: 9px 11px; border-radius: 7px; border: 1px solid rgba(32,40,31,.18);
     font-size: 14.5px; font-family: system-ui, sans-serif; background: var(--paper); color: var(--ink);
   }
   label.small { display: block; font-size: 11.5px; font-weight: 600; margin-bottom: 4px; }
-  .field { flex: 1; }
-  .grid-prices { display: grid; grid-template-columns: 1fr auto auto; row-gap: 10px; column-gap: 10px; font-family: system-ui, sans-serif; }
-  .name-cell { display: flex; align-items: center; font-size: 14px; font-weight: 600; background: #fff; border: 1px solid rgba(32,40,31,.08); border-radius: 8px; padding: 10px 12px; }
-  .badge { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(32,40,31,.08); min-width: 108px; background: #fff; }
+  .field { flex: 1; min-width: 0; }
+  .store-block { border: 1px solid rgba(32,40,31,.12); border-radius: 8px; padding: 10px; margin-top: 8px; }
+  .store-block .store-title { font-size: 12.5px; font-weight: 700; margin-bottom: 8px; font-family: system-ui, sans-serif; }
+  .grid-prices { display: grid; grid-template-columns: 1fr auto auto; row-gap: 10px; column-gap: 10px; font-family: system-ui, sans-serif; align-items: start; }
+  .name-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; font-size: 14px; font-weight: 600; background: #fff; border: 1px solid rgba(32,40,31,.08); border-radius: 8px; padding: 10px 12px; }
+  .badge { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-radius: 8px; border: 1px solid rgba(32,40,31,.08); min-width: 128px; background: #fff; }
   .badge.win { background: rgba(0,0,0,.03); }
+  .badge-top { display: flex; align-items: center; gap: 8px; }
   .badge .dot { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; display:flex; align-items:center; justify-content:center; color:#fff; font-size:12px; font-weight:700; }
   .badge .lbl { font-size: 10.5px; font-weight: 600; line-height: 1.2; }
   .badge .val { font-size: 13.5px; font-weight: 700; line-height: 1.3; }
+  .badge .old-price { font-size: 10.5px; text-decoration: line-through; color: rgba(32,40,31,.45); font-weight: 500; margin-right: 4px; }
+  .promo-flag { display: inline-block; font-size: 9.5px; font-weight: 700; color: #fff; background: var(--promo); border-radius: 4px; padding: 1px 5px; margin-left: 4px; vertical-align: middle; }
   .prod-card { display: flex; flex-direction: column; gap: 10px; margin-bottom: 10px; }
   .prod-top { display: flex; justify-content: space-between; align-items: center; }
   .del { border: none; background: transparent; color: rgba(32,40,31,.45); font-size: 18px; cursor: pointer; padding: 4px 8px; }
   .pill { text-align: center; }
   .pill .lbl { font-size: 11px; font-weight: 600; }
   .pill .val { font-size: 14px; font-weight: 700; }
-  .meta-tags { display: flex; flex-wrap: wrap; gap: 6px; }
-  .meta-tag { font-size: 11.5px; font-weight: 600; padding: 3px 8px; border-radius: 12px; background: rgba(32,40,31,.06); color: var(--ink); }
+  .meta-tags { display: flex; flex-wrap: wrap; gap: 5px; }
+  .meta-tag { font-size: 10.5px; font-weight: 600; padding: 2px 7px; border-radius: 10px; background: rgba(32,40,31,.06); color: var(--ink); }
   .unit-suffix { font-size: 10.5px; font-weight: 600; color: rgba(32,40,31,.55); margin-left: 2px; }
   .analysis { margin-top: 4px; padding-top: 10px; border-top: 1px dashed rgba(32,40,31,.15); font-family: system-ui, sans-serif; font-size: 12.5px; }
   .analysis .title { font-weight: 700; font-size: 13px; margin-bottom: 4px; }
@@ -82,14 +88,26 @@
 <div class="wrap" id="root"></div>
 
 <script>
-const STORAGE_KEY = "cp_products_v1";
+const STORAGE_KEY = "cp_products_v2";
 const MARGIN_KEY = "cp_min_margin_v1";
 
+function defaultStore(prix, promo, calibre, origine, unit) {
+  return { prix, promo: promo || "", calibre: calibre || "", origine: origine || "", unit: unit || "piece" };
+}
+
 let products = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null") || [
-  { id: 1, name: "Lait demi-écrémé 1L", achat: "0.72", monoprix: "1.15", grandfrais: "0.99", unit: "piece", calibre: "", origine: "France" },
-  { id: 2, name: "Beurre doux 250g", achat: "1.95", monoprix: "2.85", grandfrais: "2.40", unit: "piece", calibre: "", origine: "France" },
-  { id: 3, name: "Tomates grappe", achat: "2.10", monoprix: "3.90", grandfrais: "2.95", unit: "kg", calibre: "Calibre 57-67", origine: "Maroc" },
-  { id: 4, name: "Poulet fermier", achat: "6.60", monoprix: "9.50", grandfrais: "7.80", unit: "piece", calibre: "Gros calibre", origine: "Côte d'Ivoire" },
+  { id: 1, name: "Lait demi-écrémé 1L", achat: "0.72",
+    monoprix: defaultStore("1.15", "", "", "France", "piece"),
+    grandfrais: defaultStore("0.99", "", "", "France", "piece") },
+  { id: 2, name: "Beurre doux 250g", achat: "1.95",
+    monoprix: defaultStore("2.85", "2.49", "", "France", "piece"),
+    grandfrais: defaultStore("2.40", "", "", "France", "piece") },
+  { id: 3, name: "Tomates grappe", achat: "2.10",
+    monoprix: defaultStore("3.90", "", "Calibre 57-67", "Maroc", "kg"),
+    grandfrais: defaultStore("2.95", "2.49", "Calibre 47-57", "France", "kg") },
+  { id: 4, name: "Poulet fermier", achat: "6.60",
+    monoprix: defaultStore("9.50", "", "Gros calibre", "Côte d'Ivoire", "piece"),
+    grandfrais: defaultStore("7.80", "", "Calibre moyen", "Côte d'Ivoire", "piece") },
 ];
 let minMargin = localStorage.getItem(MARGIN_KEY) || "15";
 let printMode = "full";
@@ -107,24 +125,36 @@ function euro(v) {
   const n = num(v);
   return n === null ? "—" : n.toFixed(2).replace(".", ",") + " €";
 }
-function unitLabel(unit) {
-  return unit === "kg" ? "/kg" : "/pièce";
-}
 function pct(v) {
   return v.toFixed(1).replace(".", ",") + " %";
 }
+function unitLabel(unit) {
+  return unit === "kg" ? "/kg" : "/pièce";
+}
+// Prix réellement appliqué : le prix promo s'il est renseigné et valide, sinon le prix normal.
+function effectivePrice(store) {
+  const promo = num(store.promo);
+  if (promo !== null && promo > 0) return promo;
+  return num(store.prix);
+}
+function isOnPromo(store) {
+  const promo = num(store.promo);
+  return promo !== null && promo > 0;
+}
 
 function computeAnalysis(p, minMarginPct) {
-  const achat = num(p.achat), vente = num(p.monoprix), gf = num(p.grandfrais);
-  if (achat === null || vente === null || achat <= 0 || vente <= 0) return null;
-  const margeActuelle = ((vente - achat) / vente) * 100;
+  const achat = num(p.achat);
+  const venteEff = effectivePrice(p.monoprix);
+  const gfEff = effectivePrice(p.grandfrais);
+  if (achat === null || venteEff === null || achat <= 0 || venteEff <= 0) return null;
+  const margeActuelle = ((venteEff - achat) / venteEff) * 100;
   const prixPlancher = achat / (1 - minMarginPct / 100);
   let ecartVsGF = null, prixConseille = null, margeConseillee = null, atteignable = null;
-  if (gf !== null && gf > 0) {
-    ecartVsGF = ((vente - gf) / vente) * 100;
-    if (prixPlancher <= gf) {
-      prixConseille = gf;
-      margeConseillee = ((gf - achat) / gf) * 100;
+  if (gfEff !== null && gfEff > 0) {
+    ecartVsGF = ((venteEff - gfEff) / venteEff) * 100;
+    if (prixPlancher <= gfEff) {
+      prixConseille = gfEff;
+      margeConseillee = ((gfEff - achat) / gfEff) * 100;
       atteignable = true;
     } else {
       prixConseille = prixPlancher;
@@ -132,7 +162,7 @@ function computeAnalysis(p, minMarginPct) {
       atteignable = false;
     }
   }
-  return { achat, vente, gf, margeActuelle, prixPlancher, ecartVsGF, prixConseille, margeConseillee, atteignable };
+  return { achat, venteEff, gfEff, margeActuelle, prixPlancher, ecartVsGF, prixConseille, margeConseillee, atteignable };
 }
 
 const LEVERS = [
@@ -155,23 +185,25 @@ function removeProduct(id) {
   render();
 }
 
+function val(id) { const el = document.getElementById(id); return el ? el.value : ""; }
+
 function addProduct() {
-  const name = document.getElementById("f-name").value.trim();
-  const achat = document.getElementById("f-achat").value;
-  const mp = document.getElementById("f-mp").value;
-  const gf = document.getElementById("f-gf").value;
-  const unit = document.getElementById("f-unit").value;
-  const calibre = document.getElementById("f-calibre").value.trim();
-  const origine = document.getElementById("f-origine").value.trim();
-  if (!name || !achat || !mp || !gf) return;
-  products.push({ id: Date.now(), name, achat, monoprix: mp, grandfrais: gf, unit, calibre, origine });
+  const name = val("f-name").trim();
+  const achat = val("f-achat");
+  const mpPrix = val("f-mp-prix");
+  const gfPrix = val("f-gf-prix");
+  if (!name || !achat || !mpPrix || !gfPrix) return;
+
+  products.push({
+    id: Date.now(),
+    name,
+    achat,
+    monoprix: defaultStore(mpPrix, val("f-mp-promo"), val("f-mp-calibre").trim(), val("f-mp-origine").trim(), val("f-mp-unit")),
+    grandfrais: defaultStore(gfPrix, val("f-gf-promo"), val("f-gf-calibre").trim(), val("f-gf-origine").trim(), val("f-gf-unit")),
+  });
   save();
-  document.getElementById("f-name").value = "";
-  document.getElementById("f-achat").value = "";
-  document.getElementById("f-mp").value = "";
-  document.getElementById("f-gf").value = "";
-  document.getElementById("f-calibre").value = "";
-  document.getElementById("f-origine").value = "";
+  ["f-name","f-achat","f-mp-prix","f-mp-promo","f-mp-calibre","f-mp-origine","f-gf-prix","f-gf-promo","f-gf-calibre","f-gf-origine"]
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
   render();
 }
 
@@ -181,14 +213,47 @@ function onMarginChange(v) {
   render();
 }
 
-function badgeHtml(brand, price, highlight, unit) {
+function storeTagsHtml(store) {
+  const tags = [store.calibre, store.origine].filter(Boolean).map(t => `<span class="meta-tag">${t}</span>`);
+  return tags.length ? `<div class="meta-tags">${tags.join("")}</div>` : "";
+}
+
+function badgeHtml(brand, store, highlight) {
   const isMono = brand === "monoprix";
   const color = isMono ? "var(--mono)" : "var(--gf)";
   const label = isMono ? "Monoprix" : "Grand Frais";
   const initial = isMono ? "M" : "GF";
+  const onPromo = isOnPromo(store);
+  const priceHtml = onPromo
+    ? `<span class="old-price">${euro(store.prix)}</span>${euro(store.promo)}`
+    : euro(store.prix);
   return `<div class="badge ${highlight ? "win" : ""}" style="${highlight ? `border-color:${color}55;` : ""}">
-    <div class="dot" style="background:${color};">${initial}</div>
-    <div><div class="lbl" style="color:${color}">${label}</div><div class="val">${price}<span class="unit-suffix">${unitLabel(unit)}</span></div></div>
+    <div class="badge-top">
+      <div class="dot" style="background:${color};">${initial}</div>
+      <div><div class="lbl" style="color:${color}">${label}${onPromo ? `<span class="promo-flag">PROMO</span>` : ""}</div><div class="val">${priceHtml}<span class="unit-suffix">${unitLabel(store.unit)}</span></div></div>
+    </div>
+    ${storeTagsHtml(store)}
+  </div>`;
+}
+
+function storeFormBlock(prefix, storeLabel, color) {
+  return `<div class="store-block">
+    <div class="store-title sans" style="color:${color};">${storeLabel}</div>
+    <div class="row">
+      <div class="field"><label class="small sans">Prix normal (€)</label><input type="text" id="${prefix}-prix" placeholder="0.00" inputmode="decimal" /></div>
+      <div class="field"><label class="small sans">Prix promo (€)</label><input type="text" id="${prefix}-promo" placeholder="optionnel" inputmode="decimal" /></div>
+    </div>
+    <div class="row" style="margin-top:8px;">
+      <div class="field"><label class="small sans">Calibre</label><input type="text" id="${prefix}-calibre" placeholder="ex. Calibre 3" /></div>
+      <div class="field"><label class="small sans">Origine</label><input type="text" id="${prefix}-origine" placeholder="ex. France" /></div>
+      <div class="field" style="flex:0 0 110px;">
+        <label class="small sans">Vendu</label>
+        <select id="${prefix}-unit">
+          <option value="piece">pièce</option>
+          <option value="kg">kg</option>
+        </select>
+      </div>
+    </div>
   </div>`;
 }
 
@@ -207,7 +272,7 @@ function render() {
     <div>
       <div class="eyebrow sans">Comparateur & prix compétitif</div>
       <h1><span class="m">Monoprix</span> vs <span class="g">Grand Frais</span></h1>
-      <p class="sub hide-in-prices-only">Renseigne le prix d'achat, le prix de vente Monoprix et le prix Grand Frais. L'appli calcule ta marge et le prix le plus bas pour être compétitif.</p>
+      <p class="sub hide-in-prices-only">Renseigne le prix, la promo éventuelle, le calibre, l'origine et l'unité de vente pour chaque enseigne. L'appli calcule ta marge et le prix compétitif en tenant compte des promos actives.</p>
     </div>
     <div class="export-col no-print">
       <button class="btn btn-outline" onclick="exportPdf('full')">📄 PDF complet</button>
@@ -222,13 +287,9 @@ function render() {
   }
   analyses.forEach(p => {
     const cheaper = p.a && p.a.ecartVsGF !== null ? (p.a.ecartVsGF > 0 ? "grandfrais" : p.a.ecartVsGF < 0 ? "monoprix" : "egal") : null;
-    const tags = [p.calibre, p.origine].filter(Boolean).map(t => `<span class="meta-tag">${t}</span>`).join("");
-    html += `<div class="name-cell" style="flex-direction:column;align-items:flex-start;gap:4px;">
-      <div>${p.name}</div>
-      ${tags ? `<div class="meta-tags">${tags}</div>` : ""}
-    </div>`;
-    html += badgeHtml("monoprix", euro(p.monoprix), cheaper === "monoprix", p.unit);
-    html += badgeHtml("grandfrais", euro(p.grandfrais), cheaper === "grandfrais", p.unit);
+    html += `<div class="name-cell"><div>${p.name}</div></div>`;
+    html += badgeHtml("monoprix", p.monoprix, cheaper === "monoprix");
+    html += badgeHtml("grandfrais", p.grandfrais, cheaper === "grandfrais");
   });
   html += `</div>`;
 
@@ -241,22 +302,9 @@ function render() {
   html += `<div class="card no-print" style="margin-bottom:24px;">
     <div class="row" style="flex-direction:column;gap:10px;">
       <input type="text" id="f-name" placeholder="Nom du produit" />
-      <div class="row">
-        <div class="field"><label class="small sans" style="color:var(--tag);">Prix d'achat (€)</label><input type="text" id="f-achat" placeholder="0.00" inputmode="decimal" /></div>
-        <div class="field"><label class="small sans" style="color:var(--mono);">Vente Monoprix (€)</label><input type="text" id="f-mp" placeholder="0.00" inputmode="decimal" /></div>
-        <div class="field"><label class="small sans" style="color:var(--gf);">Grand Frais (€)</label><input type="text" id="f-gf" placeholder="0.00" inputmode="decimal" /></div>
-      </div>
-      <div class="row">
-        <div class="field">
-          <label class="small sans">Vendu</label>
-          <select id="f-unit" style="width:100%;padding:9px 11px;border-radius:7px;border:1px solid rgba(32,40,31,.18);font-size:14.5px;font-family:system-ui,sans-serif;background:var(--paper);color:var(--ink);">
-            <option value="piece">à la pièce</option>
-            <option value="kg">au kg</option>
-          </select>
-        </div>
-        <div class="field"><label class="small sans">Calibre</label><input type="text" id="f-calibre" placeholder="ex. Calibre 3, Gros calibre" /></div>
-        <div class="field"><label class="small sans">Origine</label><input type="text" id="f-origine" placeholder="ex. France, Maroc" /></div>
-      </div>
+      <div class="field"><label class="small sans" style="color:var(--tag);">Prix d'achat (€)</label><input type="text" id="f-achat" placeholder="0.00" inputmode="decimal" /></div>
+      ${storeFormBlock("f-mp", "Monoprix", "var(--mono)")}
+      ${storeFormBlock("f-gf", "Grand Frais", "var(--gf)")}
       <button class="btn btn-dark" onclick="addProduct()">+ Ajouter le produit</button>
     </div>
   </div>`;
@@ -269,19 +317,29 @@ function render() {
         <div style="font-size:16px;font-weight:600;">${p.name}</div>
         <button class="del no-print" onclick="removeProduct(${p.id})">🗑</button>
       </div>
-      ${(p.calibre || p.origine) ? `<div class="meta-tags">${[p.calibre, p.origine].filter(Boolean).map(t => `<span class="meta-tag">${t}</span>`).join("")}</div>` : ""}
-      <div class="row sans" style="flex-wrap:wrap;align-items:center;gap:14px;">
-        <div class="pill"><div class="lbl" style="color:var(--tag);">Achat</div><div class="val">${euro(p.achat)}<span class="unit-suffix">${unitLabel(p.unit)}</span></div></div>
-        <div class="pill"><div class="lbl" style="color:var(--mono);">Vente Monoprix</div><div class="val">${euro(p.monoprix)}<span class="unit-suffix">${unitLabel(p.unit)}</span></div></div>
-        <div class="pill"><div class="lbl" style="color:var(--gf);">Grand Frais</div><div class="val">${euro(p.grandfrais)}<span class="unit-suffix">${unitLabel(p.unit)}</span></div></div>
-        ${a ? `<div style="margin-left:auto;font-size:13px;color:rgba(32,40,31,.6);">Marge actuelle : <b style="color:var(--ink);">${pct(a.margeActuelle)}</b></div>` : ""}
+      <div class="row sans" style="flex-wrap:wrap;gap:16px;">
+        <div>
+          <div class="lbl sans" style="font-size:11px;font-weight:700;color:var(--mono);margin-bottom:4px;">Monoprix</div>
+          <div class="val" style="font-size:14px;font-weight:700;">${isOnPromo(p.monoprix) ? `<span class="old-price">${euro(p.monoprix.prix)}</span>${euro(p.monoprix.promo)}` : euro(p.monoprix.prix)}<span class="unit-suffix">${unitLabel(p.monoprix.unit)}</span></div>
+          ${storeTagsHtml(p.monoprix)}
+        </div>
+        <div>
+          <div class="lbl sans" style="font-size:11px;font-weight:700;color:var(--gf);margin-bottom:4px;">Grand Frais</div>
+          <div class="val" style="font-size:14px;font-weight:700;">${isOnPromo(p.grandfrais) ? `<span class="old-price">${euro(p.grandfrais.prix)}</span>${euro(p.grandfrais.promo)}` : euro(p.grandfrais.prix)}<span class="unit-suffix">${unitLabel(p.grandfrais.unit)}</span></div>
+          ${storeTagsHtml(p.grandfrais)}
+        </div>
+        <div>
+          <div class="lbl sans" style="font-size:11px;font-weight:700;color:var(--tag);margin-bottom:4px;">Achat</div>
+          <div class="val" style="font-size:14px;font-weight:700;">${euro(p.achat)}</div>
+        </div>
+        ${a ? `<div style="margin-left:auto;font-size:13px;color:rgba(32,40,31,.6);align-self:center;">Marge actuelle : <b style="color:var(--ink);">${pct(a.margeActuelle)}</b></div>` : ""}
       </div>
       ${a && a.ecartVsGF !== null ? `
       <div class="analysis">
-        <div class="title" style="color:${a.atteignable ? "var(--gf)" : "var(--warn)"};">🎯 Prix conseillé pour être compétitif : ${euro(a.prixConseille)}</div>
+        <div class="title" style="color:${a.atteignable ? "var(--gf)" : "var(--warn)"};">🎯 Prix conseillé pour être compétitif : ${euro(a.prixConseille)}${unitLabel(p.monoprix.unit)}</div>
         <div class="note">${a.atteignable
-          ? `Tu peux t'aligner sur Grand Frais et garder une marge de ${pct(a.margeConseillee)}.`
-          : `Impossible d'égaler Grand Frais (${euro(a.gf)}) sans passer sous ${minMarginNum}% de marge. À ${euro(a.prixConseille)}, il reste ${pct(((a.prixConseille - a.gf) / a.prixConseille) * 100)} plus cher.`}</div>
+          ? `Tu peux t'aligner sur Grand Frais (prix réellement appliqué, promo comprise) et garder une marge de ${pct(a.margeConseillee)}.`
+          : `Impossible d'égaler Grand Frais (${euro(a.gfEff)}${unitLabel(p.grandfrais.unit)}, promo comprise) sans passer sous ${minMarginNum}% de marge. À ${euro(a.prixConseille)}, il reste ${pct(((a.prixConseille - a.gfEff) / a.prixConseille) * 100)} plus cher.`}</div>
       </div>` : ""}
     </div>`;
   });
@@ -290,9 +348,9 @@ function render() {
   if (priorityProducts.length > 0) {
     html += `<div class="card hide-in-prices-only" style="margin-top:6px;">
       <div class="section-title">Plan d'action rayon</div>
-      <div class="sans note" style="margin-bottom:10px;">Produits à traiter en priorité :</div>`;
+      <div class="sans note" style="margin-bottom:10px;">Produits à traiter en priorité (écart après promos) :</div>`;
     priorityProducts.forEach(p => {
-      html += `<div class="action-item"><span>${p.name}</span><span style="color:${p.a.atteignable ? "var(--gf)" : "var(--warn)"};font-weight:700;">Objectif : ${euro(p.a.prixConseille)}${unitLabel(p.unit)}${p.a.atteignable ? "" : " (marge min.)"}</span></div>`;
+      html += `<div class="action-item"><span>${p.name}</span><span style="color:${p.a.atteignable ? "var(--gf)" : "var(--warn)"};font-weight:700;">Objectif : ${euro(p.a.prixConseille)}${unitLabel(p.monoprix.unit)}${p.a.atteignable ? "" : " (marge min.)"}</span></div>`;
     });
     if (unreachableCount > 0) {
       html += `<div class="sans" style="font-size:12.5px;color:var(--warn);background:rgba(178,58,43,.08);border-radius:6px;padding:8px 10px;margin:10px 0;">${unreachableCount} produit(s) ne peuvent pas atteindre le prix Grand Frais sans passer sous la marge minimale — le levier est de renégocier le prix d'achat.</div>`;
