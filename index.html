@@ -187,6 +187,29 @@ function removeProduct(id) {
 
 function val(id) { const el = document.getElementById(id); return el ? el.value : ""; }
 
+const ORIGINES = ["Afghanistan","Afrique du Sud","Albanie","Algérie","Allemagne","Andorre","Angola","Arabie saoudite","Argentine","Arménie","Australie","Autriche","Azerbaïdjan","Bahamas","Bahreïn","Bangladesh","Belgique","Belize","Bénin","Bhoutan","Biélorussie","Birmanie","Bolivie","Bosnie-Herzégovine","Botswana","Brésil","Brunei","Bulgarie","Burkina Faso","Burundi","Cambodge","Cameroun","Canada","Cap-Vert","Chili","Chine","Chypre","Colombie","Comores","Congo","Congo (RDC)","Corée du Nord","Corée du Sud","Costa Rica","Côte d'Ivoire","Croatie","Cuba","Danemark","Djibouti","Égypte","Émirats arabes unis","Équateur","Érythrée","Espagne","Estonie","Eswatini","États-Unis","Éthiopie","Fidji","Finlande","France","Gabon","Gambie","Géorgie","Ghana","Grèce","Grenade","Guatemala","Guinée","Guinée équatoriale","Guinée-Bissau","Guyana","Haïti","Honduras","Hongrie","Inde","Indonésie","Irak","Iran","Irlande","Islande","Israël","Italie","Jamaïque","Japon","Jordanie","Kazakhstan","Kenya","Kirghizistan","Kiribati","Kosovo","Koweït","Laos","Lesotho","Lettonie","Liban","Liberia","Libye","Liechtenstein","Lituanie","Luxembourg","Macédoine du Nord","Madagascar","Malaisie","Malawi","Maldives","Mali","Malte","Maroc","Maurice","Mauritanie","Mexique","Moldavie","Monaco","Mongolie","Monténégro","Mozambique","Namibie","Népal","Nicaragua","Niger","Nigeria","Norvège","Nouvelle-Zélande","Oman","Ouganda","Ouzbékistan","Pakistan","Palestine","Panama","Papouasie-Nouvelle-Guinée","Paraguay","Pays-Bas","Pérou","Philippines","Pologne","Portugal","Qatar","République centrafricaine","République dominicaine","République tchèque","Roumanie","Royaume-Uni","Russie","Rwanda","Saint-Marin","Salvador","Samoa","São Tomé-et-Principe","Sénégal","Serbie","Seychelles","Sierra Leone","Singapour","Slovaquie","Slovénie","Somalie","Soudan","Soudan du Sud","Sri Lanka","Suède","Suisse","Suriname","Syrie","Tadjikistan","Tanzanie","Tchad","Thaïlande","Timor oriental","Togo","Tonga","Trinité-et-Tobago","Tunisie","Turkménistan","Turquie","Tuvalu","Ukraine","Uruguay","Vanuatu","Vatican","Venezuela","Vietnam","Yémen","Zambie","Zimbabwe"];
+const CALIBRES = ["Petit calibre", "Calibre moyen", "Gros calibre", "Extra gros", "Calibre 1", "Calibre 2", "Calibre 3", "Calibre 4",
+  "35-40mm", "40-45mm", "45-50mm", "50-55mm", "55-60mm", "60-65mm", "65-70mm", "70-75mm", "75-80mm", "80-85mm", "85-90mm", "90-95mm", "95-100mm", "100mm+"];
+
+function selectValue(prefix, field) {
+  const sel = val(`${prefix}-${field}-select`);
+  if (sel === "__autre__") return val(`${prefix}-${field}-custom`).trim();
+  return sel;
+}
+
+function onSelectChange(selectEl, customId) {
+  const el = document.getElementById(customId);
+  const show = selectEl.value === "__autre__";
+  el.style.display = show ? "block" : "none";
+  if (!show) el.value = "";
+}
+
+function onPromoToggle(checkboxEl, inputId) {
+  const el = document.getElementById(inputId);
+  el.style.display = checkboxEl.checked ? "block" : "none";
+  if (!checkboxEl.checked) el.value = "";
+}
+
 function addProduct() {
   const name = val("f-name").trim();
   const achat = val("f-achat");
@@ -198,12 +221,17 @@ function addProduct() {
     id: Date.now(),
     name,
     achat,
-    monoprix: defaultStore(mpPrix, val("f-mp-promo"), val("f-mp-calibre").trim(), val("f-mp-origine").trim(), val("f-mp-unit")),
-    grandfrais: defaultStore(gfPrix, val("f-gf-promo"), val("f-gf-calibre").trim(), val("f-gf-origine").trim(), val("f-gf-unit")),
+    monoprix: defaultStore(mpPrix, val("f-mp-promo"), selectValue("f-mp", "calibre"), selectValue("f-mp", "origine"), val("f-mp-unit")),
+    grandfrais: defaultStore(gfPrix, val("f-gf-promo"), selectValue("f-gf", "calibre"), selectValue("f-gf", "origine"), val("f-gf-unit")),
   });
   save();
-  ["f-name","f-achat","f-mp-prix","f-mp-promo","f-mp-calibre","f-mp-origine","f-gf-prix","f-gf-promo","f-gf-calibre","f-gf-origine"]
+  ["f-name","f-achat","f-mp-prix","f-mp-promo","f-gf-prix","f-gf-promo"]
     .forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
+  ["f-mp-calibre-select","f-mp-origine-select","f-gf-calibre-select","f-gf-origine-select"]
+    .forEach(id => { const el = document.getElementById(id); if (el) el.value = ""; });
+  ["f-mp-calibre-custom","f-mp-origine-custom","f-gf-calibre-custom","f-gf-origine-custom"]
+    .forEach(id => { const el = document.getElementById(id); if (el) { el.value = ""; el.style.display = "none"; } });
+  ["f-mp-promo","f-gf-promo"].forEach(id => { const el = document.getElementById(id); if (el) el.style.display = "none"; });
   render();
 }
 
@@ -236,17 +264,42 @@ function badgeHtml(brand, store, highlight) {
   </div>`;
 }
 
+function optionsHtml(list, selectedValue) {
+  return list.map(o => `<option value="${o}" ${o === selectedValue ? "selected" : ""}>${o}</option>`).join("")
+    + `<option value="__autre__">Autre…</option>`;
+}
+
 function storeFormBlock(prefix, storeLabel, color) {
   return `<div class="store-block">
     <div class="store-title sans" style="color:${color};">${storeLabel}</div>
     <div class="row">
       <div class="field"><label class="small sans">Prix normal (€)</label><input type="text" id="${prefix}-prix" placeholder="0.00" inputmode="decimal" /></div>
-      <div class="field"><label class="small sans">Prix promo (€)</label><input type="text" id="${prefix}-promo" placeholder="optionnel" inputmode="decimal" /></div>
+      <div class="field" style="flex:0 0 120px;">
+        <label class="small sans" style="display:flex;align-items:center;gap:5px;">
+          <input type="checkbox" id="${prefix}-promo-toggle" onchange="onPromoToggle(this, '${prefix}-promo')" style="width:auto;" />
+          En promo
+        </label>
+      </div>
     </div>
+    <input type="text" id="${prefix}-promo" placeholder="Prix promo (€)" inputmode="decimal" style="display:none;margin-top:8px;" />
     <div class="row" style="margin-top:8px;">
-      <div class="field"><label class="small sans">Calibre</label><input type="text" id="${prefix}-calibre" placeholder="ex. Calibre 3" /></div>
-      <div class="field"><label class="small sans">Origine</label><input type="text" id="${prefix}-origine" placeholder="ex. France" /></div>
-      <div class="field" style="flex:0 0 110px;">
+      <div class="field">
+        <label class="small sans">Origine</label>
+        <select id="${prefix}-origine-select" onchange="onSelectChange(this, '${prefix}-origine-custom')">
+          <option value="">—</option>
+          ${optionsHtml(ORIGINES, "")}
+        </select>
+        <input type="text" id="${prefix}-origine-custom" placeholder="Préciser le pays" style="display:none;margin-top:6px;" />
+      </div>
+      <div class="field">
+        <label class="small sans">Calibre</label>
+        <select id="${prefix}-calibre-select" onchange="onSelectChange(this, '${prefix}-calibre-custom')">
+          <option value="">—</option>
+          ${optionsHtml(CALIBRES, "")}
+        </select>
+        <input type="text" id="${prefix}-calibre-custom" placeholder="Préciser le calibre" style="display:none;margin-top:6px;" />
+      </div>
+      <div class="field" style="flex:0 0 100px;">
         <label class="small sans">Vendu</label>
         <select id="${prefix}-unit">
           <option value="piece">pièce</option>
