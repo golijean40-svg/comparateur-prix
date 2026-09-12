@@ -110,11 +110,13 @@ let products = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null") || [
     grandfrais: defaultStore("7.80", "", "Calibre moyen", "Côte d'Ivoire", "piece") },
 ];
 let minMargin = localStorage.getItem(MARGIN_KEY) || "15";
+let floorMargin = localStorage.getItem("cp_floor_margin_v1") || "3";
 let printMode = "full";
 
 function save() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
   localStorage.setItem(MARGIN_KEY, minMargin);
+  localStorage.setItem("cp_floor_margin_v1", floorMargin);
 }
 
 function num(v) {
@@ -163,6 +165,25 @@ function computeAnalysis(p, minMarginPct) {
     }
   }
   return { achat, venteEff, gfEff, margeActuelle, prixPlancher, ecartVsGF, prixConseille, margeConseillee, atteignable };
+}
+
+// Prix plancher absolu : le prix le plus bas possible (marge minimale, ex. 2-3%)
+// tout en restant sous le prix Grand Frais si c'est réalisable.
+function computeFloorAnalysis(p, floorPct) {
+  const achat = num(p.achat);
+  const gfEff = effectivePrice(p.grandfrais);
+  if (achat === null || achat <= 0) return null;
+  const prixPlancherAbsolu = achat / (1 - floorPct / 100);
+  let sousGF = null, ecart = null;
+  if (gfEff !== null && gfEff > 0) {
+    sousGF = prixPlancherAbsolu < gfEff;
+    ecart = ((gfEff - prixPlancherAbsolu) / gfEff) * 100; // positif = marge de manœuvre sous GF, négatif = encore au-dessus
+  }
+  return { achat, prixPlancherAbsolu, floorPct, gfEff, sousGF, ecart };
+}
+
+function calibresDiffer(p) {
+  return !!(p.monoprix.calibre && p.grandfrais.calibre && p.monoprix.calibre !== p.grandfrais.calibre);
 }
 
 const LEVERS = [
@@ -240,6 +261,11 @@ function onMarginChange(v) {
   save();
   render();
 }
+function onFloorMarginChange(v) {
+  floorMargin = v;
+  save();
+  render();
+}
 
 function storeTagsHtml(store) {
   const tags = [store.calibre, store.origine].filter(Boolean).map(t => `<span class="meta-tag">${t}</span>`);
@@ -312,7 +338,8 @@ function storeFormBlock(prefix, storeLabel, color) {
 
 function render() {
   const minMarginNum = num(minMargin) ?? 15;
-  const analyses = products.map(p => ({ ...p, a: computeAnalysis(p, minMarginNum) }));
+  const floorMarginNum = num(floorMargin) ?? 3;
+  const analyses = products.map(p => ({ ...p, a: computeAnalysis(p, minMarginNum), f: computeFloorAnalysis(p, floorMarginNum) }));
   const priorityProducts = analyses
     .filter(p => p.a && p.a.ecartVsGF !== null && p.a.ecartVsGF > 0)
     .sort((x, y) => y.a.ecartVsGF - x.a.ecartVsGF)
@@ -340,15 +367,20 @@ function render() {
   }
   analyses.forEach(p => {
     const cheaper = p.a && p.a.ecartVsGF !== null ? (p.a.ecartVsGF > 0 ? "grandfrais" : p.a.ecartVsGF < 0 ? "monoprix" : "egal") : null;
-    html += `<div class="name-cell"><div>${p.name}</div></div>`;
+    html += `<div class="name-cell"><div>${p.name}</div>${calibresDiffer(p) ? `<span class="meta-tag" style="background:rgba(178,58,43,.12);color:var(--warn);">⚠️ calibres différents</span>` : ""}</div>`;
     html += badgeHtml("monoprix", p.monoprix, cheaper === "monoprix");
     html += badgeHtml("grandfrais", p.grandfrais, cheaper === "grandfrais");
   });
   html += `</div>`;
 
-  html += `<div class="row no-print" style="align-items:center;gap:10px;margin-bottom:18px;font-family:system-ui,sans-serif;">
-    <label class="sans" style="font-size:13.5px;color:rgba(32,40,31,.6);">Marge minimale à conserver</label>
+  html += `<div class="row no-print" style="align-items:center;gap:10px;margin-bottom:10px;font-family:system-ui,sans-serif;flex-wrap:wrap;">
+    <label class="sans" style="font-size:13.5px;color:rgba(32,40,31,.6);">Marge confortable à conserver</label>
     <input type="text" value="${minMargin}" oninput="onMarginChange(this.value)" style="width:56px;text-align:center;padding:6px 8px;" />
+    <span class="sans" style="font-size:13.5px;color:rgba(32,40,31,.6);">%</span>
+  </div>
+  <div class="row no-print" style="align-items:center;gap:10px;margin-bottom:18px;font-family:system-ui,sans-serif;flex-wrap:wrap;">
+    <label class="sans" style="font-size:13.5px;color:rgba(32,40,31,.6);">Marge plancher absolue (minimum vital)</label>
+    <input type="text" value="${floorMargin}" oninput="onFloorMarginChange(this.value)" style="width:56px;text-align:center;padding:6px 8px;" />
     <span class="sans" style="font-size:13.5px;color:rgba(32,40,31,.6);">%</span>
   </div>`;
 
@@ -365,6 +397,7 @@ function render() {
   html += `<div class="hide-in-prices-only">`;
   analyses.forEach(p => {
     const a = p.a;
+    const f = p.f;
     html += `<div class="card prod-card">
       <div class="prod-top">
         <div style="font-size:16px;font-weight:600;">${p.name}</div>
@@ -389,10 +422,23 @@ function render() {
       </div>
       ${a && a.ecartVsGF !== null ? `
       <div class="analysis">
-        <div class="title" style="color:${a.atteignable ? "var(--gf)" : "var(--warn)"};">🎯 Prix conseillé pour être compétitif : ${euro(a.prixConseille)}${unitLabel(p.monoprix.unit)}</div>
+        <div class="title" style="color:${a.atteignable ? "var(--gf)" : "var(--warn)"};">🎯 Prix conseillé (marge confortable) : ${euro(a.prixConseille)}${unitLabel(p.monoprix.unit)}</div>
         <div class="note">${a.atteignable
           ? `Tu peux t'aligner sur Grand Frais (prix réellement appliqué, promo comprise) et garder une marge de ${pct(a.margeConseillee)}.`
           : `Impossible d'égaler Grand Frais (${euro(a.gfEff)}${unitLabel(p.grandfrais.unit)}, promo comprise) sans passer sous ${minMarginNum}% de marge. À ${euro(a.prixConseille)}, il reste ${pct(((a.prixConseille - a.gfEff) / a.prixConseille) * 100)} plus cher.`}</div>
+      </div>` : ""}
+      ${f ? `
+      <div class="analysis">
+        <div class="title" style="color:${f.sousGF ? "var(--gf)" : "var(--warn)"};">⚡ Prix plancher absolu (marge minimale ${floorMarginNum}%) : ${euro(f.prixPlancherAbsolu)}${unitLabel(p.monoprix.unit)}</div>
+        <div class="note">${f.gfEff === null ? "Renseigne le prix Grand Frais pour comparer."
+          : f.sousGF
+            ? `C'est le prix le plus bas auquel tu peux vendre sans y perdre. Il reste ${pct(f.ecart)} en dessous de Grand Frais — tu as de la marge de manœuvre pour baisser davantage si besoin.`
+            : `Même à cette marge minimale de ${floorMarginNum}%, ce prix reste ${pct(-f.ecart)} au-dessus de Grand Frais — impossible de passer sous leur prix sans vendre à perte.`}</div>
+      </div>` : ""}
+      ${calibresDiffer(p) ? `
+      <div class="analysis">
+        <div class="title" style="color:var(--warn);">⚠️ Calibres différents</div>
+        <div class="note">Monoprix : ${p.monoprix.calibre} — Grand Frais : ${p.grandfrais.calibre}. La comparaison de prix est à nuancer : un calibre plus gros justifie en partie un prix plus élevé, ce n'est pas forcément un vrai écart de compétitivité.</div>
       </div>` : ""}
     </div>`;
   });
