@@ -119,6 +119,8 @@
 <body>
 <div class="wrap" id="root"></div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
 const STORAGE_KEY = "cp_products_v2";
 const MARGIN_KEY = "cp_min_margin_v1";
@@ -155,6 +157,92 @@ let store3Name = localStorage.getItem("cp_store3_name_v1") || "";
 let lastEditDate = localStorage.getItem("cp_last_edit_v1") || "";
 let reminderDismissed = false;
 if (!lastEditDate) { lastEditDate = new Date().toISOString(); localStorage.setItem("cp_last_edit_v1", lastEditDate); }
+let pinHash = localStorage.getItem("cp_pin_v1") || null;
+let unlocked = !pinHash;
+
+// Synchronisation cloud (Firebase Firestore) — même principe que Saloni Manager :
+// un "code de synchronisation" identique sur chaque appareil relie tous tes appareils
+// au même document. Fonctionne en complément du stockage local (localStorage reste
+// le mode hors-ligne par défaut).
+let firebaseConfig = JSON.parse(localStorage.getItem("cp_firebase_config_v1") || "null");
+let syncId = localStorage.getItem("cp_sync_id_v1") || "";
+let fbDb = null;
+let syncStatus = ""; // "" | "syncing" | "ok" | "error"
+
+function initFirebase() {
+  if (!firebaseConfig || !syncId) return false;
+  if (typeof firebase === "undefined") { syncStatus = "error"; return false; }
+  try {
+    if (!fbDb) {
+      if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+      fbDb = firebase.firestore();
+    }
+    return true;
+  } catch (e) {
+    syncStatus = "error";
+    return false;
+  }
+}
+
+function pullFromCloud() {
+  if (!initFirebase()) return;
+  syncStatus = "syncing";
+  fbDb.collection("comparateur_prix").doc(syncId).get().then(doc => {
+    if (doc.exists) {
+      const data = doc.data();
+      if (Array.isArray(data.products)) products = data.products;
+      if (data.minMargin) minMargin = data.minMargin;
+      if (data.floorMargin) floorMargin = data.floorMargin;
+      if (Array.isArray(data.priceHistory)) priceHistory = data.priceHistory;
+      if (typeof data.store3Name === "string") store3Name = data.store3Name;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(products));
+    }
+    syncStatus = "ok";
+    render();
+  }).catch(() => { syncStatus = "error"; render(); });
+}
+
+function pushToCloud() {
+  if (!initFirebase()) return;
+  syncStatus = "syncing";
+  fbDb.collection("comparateur_prix").doc(syncId).set({
+    products, minMargin, floorMargin, priceHistory, store3Name,
+    updatedAt: new Date().toISOString(),
+  }).then(() => { syncStatus = "ok"; render(); }).catch(() => { syncStatus = "error"; render(); });
+}
+
+function configureSync() {
+  const configStr = prompt("Colle ici la configuration Firebase (firebaseConfig, au format JSON) :", firebaseConfig ? JSON.stringify(firebaseConfig) : "");
+  if (configStr === null) return;
+  try {
+    firebaseConfig = JSON.parse(configStr);
+  } catch (e) {
+    alert("JSON invalide — vérifie que tu as bien copié tout l'objet firebaseConfig.");
+    return;
+  }
+  localStorage.setItem("cp_firebase_config_v1", JSON.stringify(firebaseConfig));
+  const id = prompt("Choisis un code de synchronisation (à retaper à l'identique sur chaque appareil) :", syncId);
+  if (id === null) return;
+  syncId = id.trim();
+  localStorage.setItem("cp_sync_id_v1", syncId);
+  fbDb = null;
+  alert("Synchronisation configurée. Récupération des données...");
+  pullFromCloud();
+}
+
+function disableSync() {
+  const ok = confirm("Désactiver la synchronisation cloud sur cet appareil ? Tes données restent en local.");
+  if (!ok) return;
+  firebaseConfig = null;
+  syncId = "";
+  fbDb = null;
+  syncStatus = "";
+  localStorage.removeItem("cp_firebase_config_v1");
+  localStorage.removeItem("cp_sync_id_v1");
+  render();
+}
+
+function manualSync() { pullFromCloud(); }
 
 const CATEGORIES = ["Fruits & Légumes", "Crèmerie", "Boucherie / Volaille", "Poissonnerie", "Épicerie", "Boissons", "Surgelés", "Boulangerie / Pâtisserie", "Autre"];
 
@@ -167,6 +255,7 @@ function save() {
   localStorage.setItem("cp_floor_margin_v1", floorMargin);
   localStorage.setItem(HISTORY_KEY, JSON.stringify(priceHistory));
   localStorage.setItem("cp_store3_name_v1", store3Name);
+  if (firebaseConfig && syncId) pushToCloud();
 }
 
 function touchLastEdit() {
@@ -399,6 +488,92 @@ function downloadBlob(content, filename, mime) {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
+// Verrouillage par code PIN — protection légère côté client (dissuasive,
+// pas un vrai chiffrement) pour éviter qu'un tiers ouvre l'appli directement.
+function simpleHash(s) { return btoa(unescape(encodeURIComponent(s))); }
+
+function renderLockScreen() {
+  document.getElementById("root").innerHTML = `
+    <div style="max-width:300px;margin:90px auto 0;text-align:center;">
+      <div class="brand-name" style="margin-bottom:6px;">Comparateur verrouillé</div>
+      <div class="note" style="margin-bottom:16px;">Entre ton code pour continuer</div>
+      <input type="text" id="pin-input" inputmode="numeric" placeholder="Code PIN" style="text-align:center;letter-spacing:4px;font-size:18px;margin-bottom:10px;" />
+      <div class="note" id="pin-error" style="color:var(--warn);min-height:16px;margin-bottom:10px;"></div>
+      <button class="btn btn-primary" onclick="tryUnlock()">Déverrouiller</button>
+    </div>`;
+  const input = document.getElementById("pin-input");
+  input.focus();
+  input.addEventListener("keydown", e => { if (e.key === "Enter") tryUnlock(); });
+}
+
+function tryUnlock() {
+  const entered = val("pin-input");
+  if (simpleHash(entered) === pinHash) {
+    unlocked = true;
+    render();
+  } else {
+    const err = document.getElementById("pin-error");
+    if (err) err.textContent = "Code incorrect.";
+  }
+}
+
+function setPin() {
+  const p1 = prompt("Choisis un code PIN (4 caractères minimum) :");
+  if (!p1) return;
+  if (p1.length < 4) { alert("Le code doit faire au moins 4 caractères."); return; }
+  const p2 = prompt("Confirme le code :");
+  if (p1 !== p2) { alert("Les codes ne correspondent pas."); return; }
+  pinHash = simpleHash(p1);
+  localStorage.setItem("cp_pin_v1", pinHash);
+  alert("Code PIN activé. Il sera demandé à la prochaine ouverture de l'appli.");
+}
+
+function removePin() {
+  const p1 = prompt("Entre ton code PIN actuel pour le supprimer :");
+  if (p1 === null) return;
+  if (simpleHash(p1) !== pinHash) { alert("Code incorrect."); return; }
+  pinHash = null;
+  localStorage.removeItem("cp_pin_v1");
+  alert("Code PIN supprimé.");
+}
+
+// Rapport de synthèse : compile les KPI, priorités et changements de prix
+// depuis le dernier rapport généré, en fichier texte téléchargeable.
+function generateReport() {
+  const lastReportKey = "cp_last_report_v1";
+  const sinceStr = localStorage.getItem(lastReportKey);
+  const sinceDate = sinceStr ? new Date(sinceStr) : null;
+  const changesSince = sinceDate ? priceHistory.filter(h => new Date(h.date) > sinceDate) : priceHistory;
+
+  const analyses = lastAnalyses.length ? lastAnalyses : products.map(p => ({ ...p, a: computeAnalysis(p, num(minMargin) ?? 15) }));
+  const priority = analyses
+    .filter(p => p.a && p.a.ecartVsGF !== null && p.a.ecartVsGF > 0)
+    .sort((x, y) => y.a.ecartVsGF - x.a.ecartVsGF)
+    .slice(0, 5);
+  const validGaps = analyses.filter(p => p.a && p.a.ecartVsGF !== null).map(p => p.a.ecartVsGF);
+  const avgGap = validGaps.length ? validGaps.reduce((s, v) => s + v, 0) / validGaps.length : null;
+
+  const lines = [];
+  lines.push("RAPPORT DE SYNTHÈSE — Comparateur de prix");
+  lines.push(`Généré le ${new Date().toLocaleDateString("fr-FR")} à ${new Date().toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`);
+  lines.push(sinceDate ? `Période couverte : depuis le ${sinceDate.toLocaleDateString("fr-FR")}` : "Première synthèse (aucun rapport précédent)");
+  lines.push("");
+  lines.push(`Produits suivis : ${analyses.length}`);
+  lines.push(`Écart moyen vs ${store3Name ? "concurrence" : "Grand Frais"} : ${avgGap === null ? "—" : pct(avgGap)}`);
+  lines.push(`Produits à traiter en priorité : ${priority.length}`);
+  lines.push("");
+  lines.push("TOP PRIORITÉS :");
+  if (priority.length === 0) lines.push("- Aucun produit prioritaire actuellement.");
+  priority.forEach((p, i) => lines.push(`${i + 1}. ${p.name} — écart ${pct(p.a.ecartVsGF)} — objectif ${euro(p.a.prixConseille)}`));
+  lines.push("");
+  lines.push(`CHANGEMENTS DE PRIX ENREGISTRÉS (${changesSince.length}) :`);
+  if (changesSince.length === 0) lines.push("- Aucun changement enregistré sur la période.");
+  changesSince.slice(0, 40).forEach(h => lines.push(`- ${new Date(h.date).toLocaleDateString("fr-FR")} : ${h.productName} (${h.storeLabel}) ${h.ancien} → ${h.nouveau}`));
+
+  downloadBlob(lines.join("\n"), `rapport-comparateur-${new Date().toISOString().slice(0,10)}.txt`, "text/plain;charset=utf-8;");
+  localStorage.setItem(lastReportKey, new Date().toISOString());
+}
+
 function exportDataJson() {
   const payload = { products, minMargin, floorMargin, priceHistory, exportedAt: new Date().toISOString() };
   downloadBlob(JSON.stringify(payload, null, 2), `comparateur-donnees-${new Date().toISOString().slice(0,10)}.json`, "application/json");
@@ -585,6 +760,8 @@ function storeFormBlock(prefix, storeLabel, color, storeData) {
 }
 
 function render() {
+  if (pinHash && !unlocked) { renderLockScreen(); return; }
+
   const activeEl = document.activeElement;
   const activeId = activeEl && activeEl.id ? activeEl.id : null;
   const selStart = activeId && typeof activeEl.selectionStart === "number" ? activeEl.selectionStart : null;
@@ -634,10 +811,19 @@ function render() {
     }
   }
 
-  html += `<div class="row no-print" style="gap:10px;margin-bottom:16px;flex-wrap:wrap;">
+  html += `<div class="row no-print" style="gap:10px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
     <button class="btn" onclick="exportDataJson()">Sauvegarder mes données</button>
     <button class="btn" onclick="triggerImport()">Importer une sauvegarde</button>
     <input type="file" id="import-file-input" accept="application/json" style="display:none;" onchange="importDataJson(this)" />
+    <button class="btn" onclick="generateReport()">Générer un rapport</button>
+    ${pinHash ? `<button class="btn" onclick="removePin()">Supprimer le code PIN</button>` : `<button class="btn" onclick="setPin()">Définir un code PIN</button>`}
+  </div>
+  <div class="row no-print" style="gap:10px;margin-bottom:18px;flex-wrap:wrap;align-items:center;">
+    ${syncId ? `
+      <button class="btn" onclick="manualSync()">Synchroniser maintenant</button>
+      <button class="btn" onclick="disableSync()">Désactiver la synchro</button>
+      <span class="note">${syncStatus === "syncing" ? "Synchronisation..." : syncStatus === "ok" ? "☁️ Synchronisé" : syncStatus === "error" ? "⚠️ Erreur de synchro" : ""}</span>
+    ` : `<button class="btn" onclick="configureSync()">Synchroniser entre appareils</button>`}
   </div>`;
 
   html += `<div class="kpi-grid hide-in-prices-only">
@@ -895,6 +1081,10 @@ function render() {
 }
 
 render();
+
+if (firebaseConfig && syncId) {
+  pullFromCloud();
+}
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
