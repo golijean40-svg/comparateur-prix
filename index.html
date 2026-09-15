@@ -395,9 +395,114 @@ function simulateVolume(productId, achat, profitActuel) {
   resultEl.innerHTML = `Volume nécessaire à ${euro(prixCandidat)} : <b>${volNecessaire} unité(s)</b> pour égaler le bénéfice actuel.`;
 }
 
+// Simulateur de stock promo : estime combien d'unités supplémentaires acheter
+// pendant une promo pour maintenir le prix bas après la fin de la promo,
+// sans risquer la démarque (produit périmé avant d'être vendu).
+// Hypothèse prudente : on suppose le pire cas (achat le 1er jour de la promo),
+// donc le stock supplémentaire ne peut compter que sur (conservation - durée promo)
+// jours pour s'écouler après la fin de la promo.
+function simulateStockPromo(productId) {
+  const venteJour = num(val(`sim-vente-jour-${productId}`));
+  const dureePromo = num(val(`sim-duree-promo-${productId}`));
+  const dureeConservation = num(val(`sim-duree-conservation-${productId}`));
+  const margeSecuriteInput = num(val(`sim-marge-securite-${productId}`));
+  const margeSecurite = margeSecuriteInput === null ? 15 : margeSecuriteInput;
+  const resultEl = document.getElementById(`sim-result-stock-${productId}`);
+  if (!resultEl) return;
+
+  if (venteJour === null || venteJour <= 0 || dureePromo === null || dureePromo <= 0 || dureeConservation === null || dureeConservation <= 0) {
+    resultEl.innerHTML = "";
+    return;
+  }
+
+  const joursDisponiblesApresPromo = Math.max(0, dureeConservation - dureePromo);
+  const stockSupplementaireBrut = joursDisponiblesApresPromo * venteJour;
+  const stockSupplementaire = Math.floor(stockSupplementaireBrut * (1 - margeSecurite / 100));
+  const besoinNormalPromo = Math.ceil(venteJour * dureePromo);
+  const totalACommander = besoinNormalPromo + stockSupplementaire;
+
+  if (dureeConservation <= dureePromo) {
+    resultEl.innerHTML = `<span style="color:var(--warn);">Attention : la durée de conservation (${dureeConservation}j) est trop courte par rapport à la promo (${dureePromo}j). Aucun stock supplémentaire ne peut être acheté sans risque de démarque — commande juste ce qu'il faut pour la promo (${besoinNormalPromo} unité(s)).</span>`;
+    return;
+  }
+
+  resultEl.innerHTML = `
+    <div>Commande normale pour la promo : <b>${besoinNormalPromo} unité(s)</b></div>
+    <div>Stock supplémentaire prudent : <b>${stockSupplementaire} unité(s)</b> (marge de sécurité ${margeSecurite}%)</div>
+    <div style="margin-top:4px;">Total à commander : <b>${totalACommander} unité(s)</b></div>
+    <div class="note" style="margin-top:4px;">Estimation prudente (pire cas : achat le 1er jour de la promo). Le stock supplémentaire doit s'écouler en ${joursDisponiblesApresPromo} jour(s) après la fin de la promo.</div>
+  `;
+}
+
 const ORIGINES = ["Afghanistan","Afrique du Sud","Albanie","Algérie","Allemagne","Andorre","Angola","Arabie saoudite","Argentine","Arménie","Australie","Autriche","Azerbaïdjan","Bahamas","Bahreïn","Bangladesh","Belgique","Belize","Bénin","Bhoutan","Biélorussie","Birmanie","Bolivie","Bosnie-Herzégovine","Botswana","Brésil","Brunei","Bulgarie","Burkina Faso","Burundi","Cambodge","Cameroun","Canada","Cap-Vert","Chili","Chine","Chypre","Colombie","Comores","Congo","Congo (RDC)","Corée du Nord","Corée du Sud","Costa Rica","Côte d'Ivoire","Croatie","Cuba","Danemark","Djibouti","Égypte","Émirats arabes unis","Équateur","Érythrée","Espagne","Estonie","Eswatini","États-Unis","Éthiopie","Fidji","Finlande","France","Gabon","Gambie","Géorgie","Ghana","Grèce","Grenade","Guatemala","Guinée","Guinée équatoriale","Guinée-Bissau","Guyana","Haïti","Honduras","Hongrie","Inde","Indonésie","Irak","Iran","Irlande","Islande","Israël","Italie","Jamaïque","Japon","Jordanie","Kazakhstan","Kenya","Kirghizistan","Kiribati","Kosovo","Koweït","Laos","Lesotho","Lettonie","Liban","Liberia","Libye","Liechtenstein","Lituanie","Luxembourg","Macédoine du Nord","Madagascar","Malaisie","Malawi","Maldives","Mali","Malte","Maroc","Maurice","Mauritanie","Mexique","Moldavie","Monaco","Mongolie","Monténégro","Mozambique","Namibie","Népal","Nicaragua","Niger","Nigeria","Norvège","Nouvelle-Zélande","Oman","Ouganda","Ouzbékistan","Pakistan","Palestine","Panama","Papouasie-Nouvelle-Guinée","Paraguay","Pays-Bas","Pérou","Philippines","Pologne","Portugal","Qatar","République centrafricaine","République dominicaine","République tchèque","Roumanie","Royaume-Uni","Russie","Rwanda","Saint-Marin","Salvador","Samoa","São Tomé-et-Principe","Sénégal","Serbie","Seychelles","Sierra Leone","Singapour","Slovaquie","Slovénie","Somalie","Soudan","Soudan du Sud","Sri Lanka","Suède","Suisse","Suriname","Syrie","Tadjikistan","Tanzanie","Tchad","Thaïlande","Timor oriental","Togo","Tonga","Trinité-et-Tobago","Tunisie","Turkménistan","Turquie","Tuvalu","Ukraine","Uruguay","Vanuatu","Vatican","Venezuela","Vietnam","Yémen","Zambie","Zimbabwe"];
 const CALIBRES = ["Petit calibre", "Calibre moyen", "Gros calibre", "Extra gros", "Calibre 1", "Calibre 2", "Calibre 3", "Calibre 4",
   "35-40mm", "40-45mm", "45-50mm", "50-55mm", "55-60mm", "60-65mm", "65-70mm", "70-75mm", "75-80mm", "80-85mm", "85-90mm", "90-95mm", "95-100mm", "100mm+"];
+
+// Référence de conservation (jours au frais + température recommandée) pour les
+// fruits & légumes courants. Valeurs indicatives usuelles (produit frais, non entamé) —
+// à ajuster selon la maturité réelle à réception.
+const PRODUITS_CONSERVATION = {
+  "Carotte": { jours: 14, temp: "0 à 4°C" },
+  "Pomme de terre": { jours: 60, temp: "8 à 12°C, à l'obscurité" },
+  "Tomate": { jours: 7, temp: "10 à 12°C" },
+  "Oignon": { jours: 60, temp: "10 à 15°C, au sec" },
+  "Ail": { jours: 90, temp: "10 à 15°C, au sec" },
+  "Salade": { jours: 5, temp: "0 à 4°C" },
+  "Poireau": { jours: 10, temp: "0 à 4°C" },
+  "Courgette": { jours: 7, temp: "8 à 10°C" },
+  "Aubergine": { jours: 7, temp: "8 à 12°C" },
+  "Poivron": { jours: 10, temp: "8 à 10°C" },
+  "Concombre": { jours: 7, temp: "10 à 12°C" },
+  "Chou-fleur": { jours: 7, temp: "0 à 4°C" },
+  "Chou": { jours: 14, temp: "0 à 4°C" },
+  "Brocoli": { jours: 5, temp: "0 à 4°C" },
+  "Céleri branche": { jours: 14, temp: "0 à 4°C" },
+  "Céleri-rave": { jours: 14, temp: "0 à 4°C" },
+  "Navet": { jours: 14, temp: "0 à 4°C" },
+  "Betterave": { jours: 14, temp: "0 à 4°C" },
+  "Radis": { jours: 7, temp: "0 à 4°C" },
+  "Épinard": { jours: 3, temp: "0 à 4°C" },
+  "Haricot vert": { jours: 5, temp: "0 à 4°C" },
+  "Petit pois": { jours: 3, temp: "0 à 4°C" },
+  "Potiron": { jours: 90, temp: "10 à 15°C" },
+  "Butternut": { jours: 60, temp: "10 à 15°C" },
+  "Champignon de Paris": { jours: 5, temp: "0 à 4°C" },
+  "Endive": { jours: 7, temp: "0 à 4°C" },
+  "Fenouil": { jours: 7, temp: "0 à 4°C" },
+  "Artichaut": { jours: 7, temp: "0 à 4°C" },
+  "Asperge": { jours: 4, temp: "0 à 4°C" },
+  "Maïs doux": { jours: 3, temp: "0 à 4°C" },
+  "Pomme": { jours: 30, temp: "0 à 4°C" },
+  "Poire": { jours: 14, temp: "0 à 4°C" },
+  "Banane": { jours: 5, temp: "12 à 18°C, jamais au frigo" },
+  "Orange": { jours: 21, temp: "4 à 8°C" },
+  "Clémentine": { jours: 14, temp: "4 à 8°C" },
+  "Mandarine": { jours: 14, temp: "4 à 8°C" },
+  "Citron": { jours: 21, temp: "8 à 10°C" },
+  "Pamplemousse": { jours: 21, temp: "8 à 10°C" },
+  "Fraise": { jours: 3, temp: "0 à 4°C" },
+  "Framboise": { jours: 2, temp: "0 à 4°C" },
+  "Myrtille": { jours: 7, temp: "0 à 4°C" },
+  "Cerise": { jours: 5, temp: "0 à 4°C" },
+  "Pêche": { jours: 5, temp: "8 à 10°C" },
+  "Nectarine": { jours: 5, temp: "8 à 10°C" },
+  "Abricot": { jours: 5, temp: "8 à 10°C" },
+  "Prune": { jours: 5, temp: "0 à 4°C" },
+  "Raisin": { jours: 7, temp: "0 à 4°C" },
+  "Melon": { jours: 7, temp: "8 à 10°C" },
+  "Pastèque": { jours: 14, temp: "10 à 15°C" },
+  "Kiwi": { jours: 21, temp: "0 à 4°C" },
+  "Ananas": { jours: 5, temp: "8 à 10°C" },
+  "Mangue": { jours: 5, temp: "10 à 13°C" },
+  "Avocat": { jours: 5, temp: "4 à 7°C une fois mûr" },
+  "Papaye": { jours: 5, temp: "10 à 13°C" },
+  "Litchi": { jours: 7, temp: "0 à 4°C" },
+  "Grenade": { jours: 21, temp: "4 à 8°C" },
+  "Figue": { jours: 3, temp: "0 à 4°C" },
+  "Rhubarbe": { jours: 7, temp: "0 à 4°C" },
+  "Noix de coco": { jours: 30, temp: "10 à 15°C" },
+};
+const PRODUITS_NOMS = Object.keys(PRODUITS_CONSERVATION).sort((a, b) => a.localeCompare(b, "fr"));
 
 function selectValue(prefix, field) {
   const sel = val(`${prefix}-${field}-select`);
@@ -430,7 +535,7 @@ function logChange(productName, storeLabel, oldVal, newVal) {
 }
 
 function addProduct() {
-  const name = val("f-name").trim();
+  const name = selectValue("f", "name").trim();
   const achat = val("f-achat");
   const mpPrix = val("f-mp-prix");
   const gfPrix = val("f-gf-prix");
@@ -711,6 +816,20 @@ function optionsHtml(list, selectedValue) {
     + `<option value="__autre__" ${selectedValue === "__autre__" ? "selected" : ""}>Autre…</option>`;
 }
 
+function nameFieldHtml(currentName) {
+  const inList = currentName && PRODUITS_NOMS.includes(currentName);
+  const selectVal = currentName ? (inList ? currentName : "__autre__") : "";
+  const customVal = currentName && !inList ? currentName : "";
+  return `<div class="field">
+    <label class="small">Nom du produit</label>
+    <select id="f-name-select" onchange="onSelectChange(this, 'f-name-custom')">
+      <option value="" ${selectVal === "" ? "selected" : ""}>—</option>
+      ${optionsHtml(PRODUITS_NOMS, selectVal)}
+    </select>
+    <input type="text" id="f-name-custom" value="${customVal}" placeholder="Préciser le nom du produit" style="display:${customVal ? "block" : "none"};margin-top:6px;" />
+  </div>`;
+}
+
 function storeFormBlock(prefix, storeLabel, color, storeData) {
   const s = storeData || { prix: "", promo: "", calibre: "", origine: "", unit: "piece" };
   const origineInList = s.origine && ORIGINES.includes(s.origine);
@@ -925,7 +1044,7 @@ function render() {
   <div class="section-title no-print">${editingProduct ? "Modifier le produit" : "Ajouter un produit"}</div>
   <div class="card no-print" style="margin-bottom:24px;">
     <div class="row" style="flex-direction:column;gap:10px;">
-      <div class="field"><label class="small">Nom du produit</label><input type="text" id="f-name" value="${editingProduct ? editingProduct.name : ""}" placeholder="ex. Tomates grappe" /></div>
+      ${nameFieldHtml(editingProduct ? editingProduct.name : "")}
       <div class="field">
         <label class="small">Catégorie</label>
         <select id="f-categorie">
@@ -1027,6 +1146,24 @@ function render() {
           </div>
         </div>
         <div class="note" id="sim-result-vol-${p.id}" style="margin-top:6px;"></div>
+      </div>` : ""}
+      ${a ? `
+      <div class="analysis no-print">
+        <div class="title">Simulateur de stock promo</div>
+        <div class="note" style="margin-bottom:8px;">Estime combien de cartons supplémentaires acheter pendant une promo pour garder le prix bas après, sans risquer la démarque.</div>
+        <div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+          <div class="field" style="flex:0 0 140px;"><label class="small">Vente/jour (unités)</label><input type="text" id="sim-vente-jour-${p.id}" placeholder="ex. 1" inputmode="numeric" oninput="simulateStockPromo(${p.id})" /></div>
+          <div class="field" style="flex:0 0 140px;"><label class="small">Durée promo (jours)</label><input type="text" id="sim-duree-promo-${p.id}" placeholder="ex. 5" inputmode="numeric" oninput="simulateStockPromo(${p.id})" /></div>
+        </div>
+        <div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:4px;">
+          <div class="field" style="flex:0 0 160px;">
+            <label class="small">Conservation produit (jours)</label>
+            <input type="text" id="sim-duree-conservation-${p.id}" value="${PRODUITS_CONSERVATION[p.name] ? PRODUITS_CONSERVATION[p.name].jours : ""}" placeholder="ex. 10" inputmode="numeric" oninput="simulateStockPromo(${p.id})" />
+          </div>
+          <div class="field" style="flex:0 0 140px;"><label class="small">Marge de sécurité (%)</label><input type="text" id="sim-marge-securite-${p.id}" value="15" inputmode="numeric" oninput="simulateStockPromo(${p.id})" /></div>
+        </div>
+        ${PRODUITS_CONSERVATION[p.name] ? `<div class="note" style="margin-bottom:8px;">Référence pour "${p.name}" : ${PRODUITS_CONSERVATION[p.name].jours} jours à ${PRODUITS_CONSERVATION[p.name].temp} — à ajuster selon la fraîcheur réelle à réception.</div>` : ""}
+        <div class="note" id="sim-result-stock-${p.id}"></div>
       </div>` : ""}
     </div>`;
   });
